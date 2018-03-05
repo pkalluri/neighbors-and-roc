@@ -11,7 +11,7 @@ import os
 
 # Settings
 data_opts = Data_Defaults()
-data_opts.NUM_STORIES = 3
+data_opts.NUM_STORIES = 100 # All stories
 
 # Sentences
 stories, contexts, completions = util_ROC.get_stories_contexts_and_completions(data_opts.ROC_FILEPATH, num_stories=data_opts.NUM_STORIES)
@@ -23,7 +23,7 @@ out,err = proc.communicate('\n'.join(first_sentences).encode('utf-8'))
 sentiment_labels = out.decode('utf-8').split()
 
 # Write
-with open(os.path.join(fixed_settings.GENERATED_DATA_ROOT,'first_sentences_sentiments.txt'), 'w') as f:
+with open(os.path.join(fixed_settings.GENERATED_DATA_ROOT,'first_sentences_sentiments2.txt'), 'w') as f:
     f.write('\n'.join(sentiment_labels))
     f.close()
 

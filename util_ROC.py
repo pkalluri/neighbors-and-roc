@@ -1,9 +1,4 @@
 import csv
-import nltk
-import numpy as np
-import math
-from gensim.models import KeyedVectors
-from analyze_roc import util_pos
 
 def get_stories_contexts_and_completions(ROC_filepath, num_stories=None):
     stories = []
@@ -42,8 +37,3 @@ def get_all_sentences(ROC_filepath, num_stories=None):
 # Lumps each doc into a single string
 def lump_sentences_into_docs(docs):
     return [' '.join(doc) for doc in docs]
-
-def preprocess(sentences):
-    edited_sentences = sentences
-    edited_sentences = util_pos.replace_proper_nouns(edited_sentences)
-    return edited_sentences
