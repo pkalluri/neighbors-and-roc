@@ -1,5 +1,5 @@
-from demo_effect_of_neighbors import util_ROC, fixed_settings
-from demo_effect_of_neighbors.options import Data_Defaults
+from neighbors_and_roc import util_ROC, fixed_settings
+from neighbors_and_roc.options import Data_Defaults
 
 from subprocess import Popen, PIPE
 import random

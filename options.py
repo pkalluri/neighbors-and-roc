@@ -1,6 +1,6 @@
 import json
 import os
-from demo_effect_of_neighbors import fixed_settings
+from neighbors_and_roc import fixed_settings
 
 """To set options"""
 class Options(object):
