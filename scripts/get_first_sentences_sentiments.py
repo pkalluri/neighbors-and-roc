@@ -1,3 +1,7 @@
+import sys
+import os.path
+sys.path.append(os.path.join(os.path.dirname(__file__), '..','..'))
+
 from neighbors_and_roc import util_ROC, fixed_settings
 from neighbors_and_roc.options import Data_Defaults
 
