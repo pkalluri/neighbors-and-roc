@@ -1,9 +1,10 @@
 import csv
 
-def get_stories_contexts_and_completions(ROC_filepath, num_stories=None):
+def get_stories_contexts_completions_and_sentences(ROC_filepath, num_stories=None):
     stories = []
     contexts = []
     completions = []
+    sentences = []
     with open(ROC_filepath, 'rt') as csvfile:
         reader = csv.reader(csvfile)
         _ = next(reader)  # Ignore headers
@@ -12,13 +13,15 @@ def get_stories_contexts_and_completions(ROC_filepath, num_stories=None):
                 stories.append(row[2:])  # Ignore metainfo
                 contexts.append(row[2:-1])  # Ignore metainfo and last sentence
                 completions.append(row[-1]) # Last sentence
+                sentences.extend(row[2:])  # Ignore metainfo
         else:
             for i in range(num_stories):
                 row = next(reader)
                 stories.append(row[2:])  # Ignore metainfo
                 contexts.append(row[2:-1])  # Ignore metainfo and last sentence
                 completions.append(row[-1])
-    return stories, contexts, completions
+                sentences.extend(row[2:])  # Ignore metainfo
+    return stories, contexts, completions, sentences
 
 def get_all_sentences(ROC_filepath, num_stories=None):
     sentences = []
