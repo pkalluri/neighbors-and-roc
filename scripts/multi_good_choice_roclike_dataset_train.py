@@ -17,18 +17,19 @@ np.random.seed(1)
 
 # OPTIONS
 data_opts = Data_Defaults()
-data_opts.NUM_STORIES = 20000
+data_opts.NUM_STORIES = 15000
 print(data_opts, "\n")
 model_opts = Model_Defaults()
 model_opts.EMBEDDINGS_FILENAME = 'GoogleNews-vectors-negative300.txt'
 model_opts.EMBEDDINGS_FILEPATH = os.path.join(fixed_settings.EMBEDDINGS_ROOT,
                                     model_opts.EMBEDDINGS_FILENAME) if model_opts.EMBEDDINGS_FILENAME != None else None
-# self.HIDDEN_LAYERS = [150, 75]
+model_opts.HIDDEN_LAYERS = [150]
 # self.BATCH_SIZE = 32
-model_opts.EPOCHS = 100
-model_opts.BASE_NUM_TRAINING_SAMPLES = 10000
+model_opts.EPOCHS = 10
+model_opts.BASE_NUM_TRAINING_SAMPLES = 5000
 model_opts.PERCENTAGE_TO_ADD = 0
-model_opts.NUM_TESTING_SAMPLES = 1000
+model_opts.NUM_TESTING_SAMPLES = 500
+# model_opts.USING_ALTERNATIVES = True
 # model_opts = Model_Defaults() # For quick debugging only
 print(model_opts, "\n")
 assert(data_opts.NUM_STORIES >
@@ -39,7 +40,7 @@ assert(data_opts.NUM_STORIES >
 sentences = util_ROC.get_all_sentences(data_opts.ROC_FILEPATH, num_stories=data_opts.NUM_STORIES)
 # train_text, dev_text, test_text = util_data.split_list_in_3(data_opts.TRAIN_PERCENTAGE, data_opts.DEV_PERCENTAGE, stories)
 
-# prepare the tokenizer on the source text #TODO see what be moved out of this file
+# prepare the tokenizer on the source text #TODO see what can be moved out of this file
 tokenizer = Tokenizer()
 tokenizer.fit_on_texts(sentences)
 index_to_word = {index: word for (word, index) in tokenizer.word_index.items()}
@@ -48,17 +49,17 @@ vocab_size = len(tokenizer.word_index) + 1  # Because tokenizer does not assign 
 print('Vocabulary Size: %d' % vocab_size)
 # Convert from text to sequences
 sequences = tokenizer.texts_to_sequences(sentences)
-print('Total Sequences: %d' % len(sequences))
 # pad input sequences
 max_sentence_length = max([len(seq) for seq in sequences])
 sequences = pad_sequences(sequences, maxlen=max_sentence_length, padding='pre')
 print('Max Sequence Length: %d' % max_sentence_length)
 # split into input and output elements
 NUM_GOOD_CHOICES = 2
-NUM_BAD_CHOICES = 1
+NUM_BAD_CHOICES = 8
 
 def get_bad_choice_sentence_index(id): #TODO
-    return random.randint(0,len(sentences))
+    r = random.randint(0,len(sentences)-1)
+    return r
 
 # Get list of choice arrays with correct choices marked
 # c1 1 0
@@ -71,7 +72,7 @@ def get_bad_choice_sentence_index(id): #TODO
 choices_labels = []
 for i in range(0,len(sentences)-NUM_GOOD_CHOICES,5):
     good_choices = sequences[i+1:i+1+NUM_GOOD_CHOICES]
-    bad_choices = sequences[get_bad_choice_sentence_index(i)]
+    bad_choices = np.vstack(([sequences[get_bad_choice_sentence_index(i),:] for _ in range(NUM_BAD_CHOICES)]))
     all_choices = np.vstack((good_choices,bad_choices)) #TODO swap vstack/hstack -> stack
     all_labels = np.array([1]*NUM_GOOD_CHOICES + [0]*NUM_BAD_CHOICES).reshape((NUM_GOOD_CHOICES+NUM_BAD_CHOICES,1))
     label1 = to_categorical(random.choice(range(NUM_GOOD_CHOICES)), num_classes=NUM_GOOD_CHOICES+NUM_BAD_CHOICES)\
@@ -100,14 +101,13 @@ Y_alternatives = np.vstack([sample[:,-1].reshape(NUM_GOOD_CHOICES+NUM_BAD_CHOICE
 #endregion
 basic_training_data = (X[:model_opts.BASE_NUM_TRAINING_SAMPLES],
                  Y[:model_opts.BASE_NUM_TRAINING_SAMPLES])
-NUM_SAMPLES_TO_ADD = int(model_opts.BASE_NUM_TRAINING_SAMPLES * model_opts.BASE_NUM_TRAINING_SAMPLES)
+NUM_SAMPLES_TO_ADD = int(model_opts.BASE_NUM_TRAINING_SAMPLES * model_opts.PERCENTAGE_TO_ADD)
 fresh_training_data = (X[model_opts.BASE_NUM_TRAINING_SAMPLES:model_opts.BASE_NUM_TRAINING_SAMPLES + NUM_SAMPLES_TO_ADD],
                        Y[model_opts.BASE_NUM_TRAINING_SAMPLES:model_opts.BASE_NUM_TRAINING_SAMPLES + NUM_SAMPLES_TO_ADD])
 alternative_training_data = (X[:NUM_SAMPLES_TO_ADD],
                              Y_alternatives[:NUM_SAMPLES_TO_ADD])
 testing_data = (X[len(X)-model_opts.NUM_TESTING_SAMPLES:],
                 Y[len(X)-model_opts.NUM_TESTING_SAMPLES:]+Y_alternatives[len(X)-model_opts.NUM_TESTING_SAMPLES:])
-
 
 # GET EMBEDDINGS
 print("Retrieving embeddings...")
@@ -117,42 +117,40 @@ if model_opts.EMBEDDINGS_FILENAME:
 
 
 # TRAIN WITH DATA ADDED
-for additional_training_data in [fresh_training_data,alternative_training_data]:
-    print("Building model...")
-    if model_opts.EMBEDDINGS_FILENAME:
-        model = my_models.model(input_length=X.shape[1], num_classes=NUM_GOOD_CHOICES+NUM_BAD_CHOICES,
-                                embedding_matrix=embedding_matrix, hidden_layers=model_opts.HIDDEN_LAYERS)
-    else:  # Random embedding, mostly for debugging
-        model = my_models.model(input_length=X.shape[1], num_classes=NUM_GOOD_CHOICES+NUM_BAD_CHOICES,
-                                embedding_matrix_shape=(vocab_size, model_opts.EMBEDDING_SIZE), hidden_layers=model_opts.HIDDEN_LAYERS)
-    model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
-    print("Training model...")
-    history = model.fit(np.vstack((basic_training_data[0], additional_training_data[0])), np.vstack((basic_training_data[1], additional_training_data[1])),
-                        validation_data=(testing_data[0], testing_data[1]),
-                        epochs=model_opts.EPOCHS, batch_size=model_opts.BATCH_SIZE, verbose=0)
-    #region printing during training
-    history_log = history.history
-    epoch=0
-    for acc in history_log["acc"]:
-        print("Epoch {epoch:3}: Loss={loss:.3f} / {val_loss:.3f}  Acc={acc:.3f} / {val_acc:.3f}".
-              format(epoch=epoch + 1,
-                     loss=history.history["loss"][epoch],
-                     acc=acc, val_loss=history.history["val_loss"][epoch],
-                     val_acc=history.history["val_acc"][epoch]
-                     )
-              )
-        epoch += 1
-    #endregion
-    print("Evaluating model...")
-    # Note that model.evaluate() is intentionally not used here because it will only mark 1 (the first) of the 2 valid answers correct
-    num_correct = 0
-    for i in range(model_opts.NUM_TESTING_SAMPLES):
-        x,y = testing_data[0][i,:].reshape((1,testing_data[0].shape[1])), testing_data[1][i,:].reshape((1,testing_data[1].shape[1]))
-        # print('{pred} should be {label}'.format(pred=model.predict(x, verbose=2),label=y))
-        prediction = model.predict_classes(x, verbose=2)[0]
-        if y[0,prediction] == 1: num_correct += 1
-    print('{correct} out of {all}'.format(correct=num_correct, all=model_opts.NUM_TESTING_SAMPLES))
-    print(num_correct/model_opts.NUM_TESTING_SAMPLES)
+additional_training_data = alternative_training_data if model_opts.USING_ALTERNATIVES else fresh_training_data
+print("Building model...")
+if model_opts.EMBEDDINGS_FILENAME:
+    model = my_models.model(input_length=X.shape[1], num_classes=NUM_GOOD_CHOICES+NUM_BAD_CHOICES,
+                            embedding_matrix=embedding_matrix, hidden_layers=model_opts.HIDDEN_LAYERS)
+else:  # Random embedding, mostly for debugging
+    model = my_models.model(input_length=X.shape[1], num_classes=NUM_GOOD_CHOICES+NUM_BAD_CHOICES,
+                            embedding_matrix_shape=(vocab_size, model_opts.EMBEDDING_SIZE), hidden_layers=model_opts.HIDDEN_LAYERS)
+model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+print("Training model...")
+history = model.fit(np.vstack((basic_training_data[0], additional_training_data[0])), np.vstack((basic_training_data[1], additional_training_data[1])),
+                    epochs=model_opts.EPOCHS, batch_size=model_opts.BATCH_SIZE, verbose=2)
+print("Evaluating model...")
+# Note that model.evaluate() is intentionally not used here because it will only mark 1 (the first) of the 2 valid answers correct
+num_correct = 0
+for i in range(model_opts.NUM_TESTING_SAMPLES):
+    x,y = testing_data[0][i,:].reshape((1,testing_data[0].shape[1])), testing_data[1][i,:].reshape((1,testing_data[1].shape[1]))
+    prediction = model.predict_classes(x)[0]
+    if y[0,prediction] == 1: print('\nCorrect:'); num_correct += 1
+    else: print('\nWrong')
+
+    choice_num = 0
+    for start in range(0,x.shape[1],max_sentence_length):
+        predicted_flag = ''
+        gold_star_flag = ''
+        if start != 0:
+            if choice_num == prediction: predicted_flag = '>'
+            if y[0,choice_num] == 1: gold_star_flag = '*'
+            choice_num += 1
+        print(gold_star_flag+predicted_flag+
+              ' '.join([index_to_word[i] for i in x[0,start:start+max_sentence_length] if i!=0])) # HELPFUL FOR DEBUGGING
+
+print('\n{correct}/{all}={perc:.2%}'.format(correct=num_correct, all=model_opts.NUM_TESTING_SAMPLES,
+                                        perc=num_correct/model_opts.NUM_TESTING_SAMPLES))
 
 
 #

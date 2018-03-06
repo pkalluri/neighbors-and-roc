@@ -24,9 +24,11 @@ class Model_Defaults(Options):
         self.EMBEDDINGS_FILEPATH = os.path.join(fixed_settings.EMBEDDINGS_ROOT, self.EMBEDDINGS_FILENAME) if self.EMBEDDINGS_FILENAME!=None else None
         self.EMBEDDING_SIZE = 300
 
-        self.HIDDEN_LAYERS = [150,75]
-        self.BATCH_SIZE = 32
+        self.HIDDEN_LAYERS = []
+        self.BATCH_SIZE = 64
         self.EPOCHS = 2
         self.BASE_NUM_TRAINING_SAMPLES = 10
         self.PERCENTAGE_TO_ADD = 0
         self.NUM_TESTING_SAMPLES = 10
+
+        self.USING_ALTERNATIVES = True
