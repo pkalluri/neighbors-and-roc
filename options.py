@@ -19,14 +19,14 @@ class Data_Defaults(Options):
 
 class Model_Defaults(Options):
     def __init__(self):
-        self.EMBEDDINGS_FILENAME = 'GoogleNews-vectors-negative300.txt'
+        # self.EMBEDDINGS_FILENAME = 'GoogleNews-vectors-negative300.txt'
         self.EMBEDDINGS_FILENAME = None
         self.EMBEDDINGS_FILEPATH = os.path.join(fixed_settings.EMBEDDINGS_ROOT, self.EMBEDDINGS_FILENAME) if self.EMBEDDINGS_FILENAME!=None else None
         self.EMBEDDING_SIZE = 300
 
         self.HIDDEN_LAYERS = [150,75]
         self.BATCH_SIZE = 32
-        self.EPOCHS = 100
-        self.BASE_NUM_TRAINING_SAMPLES = 10000
+        self.EPOCHS = 2
+        self.BASE_NUM_TRAINING_SAMPLES = 10
         self.PERCENTAGE_TO_ADD = 0
-        self.NUM_TESTING_SAMPLES = 1000
+        self.NUM_TESTING_SAMPLES = 10
