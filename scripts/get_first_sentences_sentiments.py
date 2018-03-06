@@ -15,7 +15,7 @@ data_opts.NUM_STORIES = 100 # All stories
 
 # Sentences
 stories, contexts, completions = util_ROC.get_stories_contexts_and_completions(data_opts.ROC_FILEPATH, num_stories=data_opts.NUM_STORIES)
-first_sentences = [completion[0] for completion in completions]
+first_sentences = completions
 
 # Sentiment
 proc = Popen('java -mx5g edu.stanford.nlp.sentiment.SentimentPipeline -stdin', shell=True, stdin=PIPE, stdout=PIPE)
