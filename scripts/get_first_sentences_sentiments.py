@@ -15,7 +15,7 @@ data_opts.NUM_STORIES = 100 # All stories
 
 # Sentences
 stories, contexts, completions = util_ROC.get_stories_contexts_and_completions(data_opts.ROC_FILEPATH, num_stories=data_opts.NUM_STORIES)
-first_sentences = [context[0] for context in contexts]
+first_sentences = [completion[0] for completion in completions]
 
 # Sentiment
 proc = Popen('java -mx5g edu.stanford.nlp.sentiment.SentimentPipeline -stdin', shell=True, stdin=PIPE, stdout=PIPE)
@@ -23,7 +23,7 @@ out,err = proc.communicate('\n'.join(first_sentences).encode('utf-8'))
 sentiment_labels = out.decode('utf-8').split()
 
 # Write
-with open(os.path.join(fixed_settings.GENERATED_DATA_ROOT,'first_sentences_sentiments2.txt'), 'w') as f:
+with open(os.path.join(fixed_settings.GENERATED_DATA_ROOT,'completions_sentiments-100.txt'), 'w') as f:
     f.write('\n'.join(sentiment_labels))
     f.close()
 
