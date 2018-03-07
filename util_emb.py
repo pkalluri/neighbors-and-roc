@@ -13,7 +13,7 @@ def get_embedding_matrix(embedding_size, embedding_path, vocab_size, word_to_ind
                 coefs = np.asarray(values[1:],dtype='float32')
                 embedding_matrix[word_to_index[word],:] = coefs
                 words_found += 1
-    print(words_found/vocab_size)
+    # print(words_found/vocab_size)
     return embedding_matrix
 #
 # def get_vocabularys_embedding_matrix(embedding_size, embedding_path, vocabulary, topn=0):
