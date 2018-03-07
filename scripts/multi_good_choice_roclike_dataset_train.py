@@ -15,18 +15,19 @@ random.seed(1)
 np.random.seed(1)
 
 
+
 # OPTIONS
 data_opts = Data_Defaults()
 data_opts.NUM_STORIES = 15000
 print(data_opts, "\n")
 model_opts = Model_Defaults()
 model_opts.EMBEDDINGS_FILENAME = 'GoogleNews-vectors-negative300.txt'
-model_opts.EMBEDDINGS_FILEPATH = os.path.join(fixed_settings.EMBEDDINGS_ROOT,
-                                    model_opts.EMBEDDINGS_FILENAME) if model_opts.EMBEDDINGS_FILENAME != None else None
+model_opts.EMBEDDINGS_FILEPATH = os.path.join(fixed_settings.EMBEDDINGS_ROOT, model_opts.EMBEDDINGS_FILENAME) if model_opts.EMBEDDINGS_FILENAME != None else None
 model_opts.HIDDEN_LAYERS = [150]
 # self.BATCH_SIZE = 32
 model_opts.EPOCHS = 10
-model_opts.BASE_NUM_TRAINING_SAMPLES = 5000
+# model_opts.DROPOUT = True
+model_opts.BASE_NUM_TRAINING_SAMPLES = 10000
 model_opts.PERCENTAGE_TO_ADD = 0
 model_opts.NUM_TESTING_SAMPLES = 500
 # model_opts.USING_ALTERNATIVES = True
@@ -110,21 +111,22 @@ testing_data = (X[len(X)-model_opts.NUM_TESTING_SAMPLES:],
                 Y[len(X)-model_opts.NUM_TESTING_SAMPLES:]+Y_alternatives[len(X)-model_opts.NUM_TESTING_SAMPLES:])
 
 # GET EMBEDDINGS
-print("Retrieving embeddings...")
 if model_opts.EMBEDDINGS_FILENAME:
+    print("Retrieving embeddings...")
     embedding_matrix = util_emb.get_embedding_matrix(
         embedding_size=model_opts.EMBEDDING_SIZE, embedding_path=model_opts.EMBEDDINGS_FILEPATH, vocab_size=vocab_size, word_to_index=tokenizer.word_index)
-
 
 # TRAIN WITH DATA ADDED
 additional_training_data = alternative_training_data if model_opts.USING_ALTERNATIVES else fresh_training_data
 print("Building model...")
 if model_opts.EMBEDDINGS_FILENAME:
-    model = my_models.model(input_length=X.shape[1], num_classes=NUM_GOOD_CHOICES+NUM_BAD_CHOICES,
-                            embedding_matrix=embedding_matrix, hidden_layers=model_opts.HIDDEN_LAYERS)
+    model = my_models.classifier_model(input_length=X.shape[1], num_classes=NUM_GOOD_CHOICES + NUM_BAD_CHOICES,
+                                       embedding_matrix=embedding_matrix,
+                                       hidden_layers=model_opts.HIDDEN_LAYERS, dropout=model_opts.DROPOUT, regularize=model_opts.REGULARIZE)
 else:  # Random embedding, mostly for debugging
-    model = my_models.model(input_length=X.shape[1], num_classes=NUM_GOOD_CHOICES+NUM_BAD_CHOICES,
-                            embedding_matrix_shape=(vocab_size, model_opts.EMBEDDING_SIZE), hidden_layers=model_opts.HIDDEN_LAYERS)
+    model = my_models.classifier_model(input_length=X.shape[1], num_classes=NUM_GOOD_CHOICES + NUM_BAD_CHOICES,
+                                       embedding_matrix_shape=(vocab_size, model_opts.EMBEDDING_SIZE),
+                                       hidden_layers=model_opts.HIDDEN_LAYERS, dropout=model_opts.DROPOUT, regularize=model_opts.REGULARIZE)
 model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
 print("Training model...")
 history = model.fit(np.vstack((basic_training_data[0], additional_training_data[0])), np.vstack((basic_training_data[1], additional_training_data[1])),
@@ -137,7 +139,6 @@ for i in range(model_opts.NUM_TESTING_SAMPLES):
     prediction = model.predict_classes(x)[0]
     if y[0,prediction] == 1: print('\nCorrect:'); num_correct += 1
     else: print('\nWrong')
-
     choice_num = 0
     for start in range(0,x.shape[1],max_sentence_length):
         predicted_flag = ''
@@ -148,7 +149,6 @@ for i in range(model_opts.NUM_TESTING_SAMPLES):
             choice_num += 1
         print(gold_star_flag+predicted_flag+
               ' '.join([index_to_word[i] for i in x[0,start:start+max_sentence_length] if i!=0])) # HELPFUL FOR DEBUGGING
-
 print('\n{correct}/{all}={perc:.2%}'.format(correct=num_correct, all=model_opts.NUM_TESTING_SAMPLES,
                                         perc=num_correct/model_opts.NUM_TESTING_SAMPLES))
 

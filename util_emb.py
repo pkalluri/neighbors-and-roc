@@ -2,9 +2,8 @@ import numpy as np
 
 def get_embedding_matrix(embedding_size, embedding_path, vocab_size, word_to_index):
     embedding_matrix = np.random.rand(vocab_size, embedding_size)
-    with open(embedding_path, "rb") as embedding_f:
+    with open(embedding_path, "r") as embedding_f:
         first_line = embedding_f.readline() #Skip
-
         words_found = 0
         for line in embedding_f:
             if words_found == vocab_size: break
@@ -12,8 +11,9 @@ def get_embedding_matrix(embedding_size, embedding_path, vocab_size, word_to_ind
             word = values[0]
             if word in word_to_index:
                 coefs = np.asarray(values[1:],dtype='float32')
-                embedding_matrix[word_to_index[word]] = coefs
+                embedding_matrix[word_to_index[word],:] = coefs
                 words_found += 1
+    print(words_found/vocab_size)
     return embedding_matrix
 #
 # def get_vocabularys_embedding_matrix(embedding_size, embedding_path, vocabulary, topn=0):
