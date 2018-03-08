@@ -67,7 +67,7 @@ def seq2seq_models(in_vocab_size, out_vocab_size, hidden_dim,
     return training_model, encoder_model, decoder_model
 
 ### Modified from https://machinelearningmastery.com/develop-encoder-decoder-model-sequence-sequence-prediction-keras/ ###
-def predict_sequence(encoder_model, decoder_model, x, out_vocab_size, words_to_index, start_token, stop_token):
+def predict_sequence(encoder_model, decoder_model, x, out_vocab_size, words_to_index, start_token, stop_token, prediction_length_cap):
     # encode
     state = encoder_model.predict(x)
     # start of sequence input
@@ -88,7 +88,7 @@ def predict_sequence(encoder_model, decoder_model, x, out_vocab_size, words_to_i
         target_seq = out
         # check for stop
         predicted_index = np.argmax(out[0,0,:])
-        if predicted_index == words_to_index[stop_token]:
+        if predicted_index == words_to_index[stop_token] or len(output)>prediction_length_cap:
             stop=True
     return np.array(output)
 

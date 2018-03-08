@@ -1,5 +1,5 @@
 from neighbors_and_roc.options import Options, Data_Defaults, Model_Defaults
-from neighbors_and_roc import util_ROC, fixed_settings, util_text, util_emb, my_models
+from neighbors_and_roc import util_ROC, fixed_settings, util_text, util_emb, my_models, util_misc
 
 import random
 import json
@@ -9,6 +9,8 @@ from keras.preprocessing.text import Tokenizer
 from keras.utils import to_categorical
 import numpy as np
 import string
+import csv
+
 #
 # # OPTIONS
 # TO_WRITE = os.path.join(fixed_settings.GENERATED_DATA_ROOT, 'generation_yelplike.txt')
@@ -32,49 +34,55 @@ import string
 # assert(data_opts.NUM_STORIES >
 #        opts.BASE_NUM_TRAINING_SAMPLES + opts.PERCENTAGE_TO_ADD * opts.BASE_NUM_TRAINING_SAMPLES + opts.NUM_TESTING_SAMPLES)
 
-# SETTINGS
+# SETUP
+util_misc.force_tf_to_take_memory_only_as_needed() # For use on NLP cluster
+
+# OPTIONS
 class Toy_Options(Options):
     def __init__(self):
-        self.START_TOKEN = 'start'
-        self.STOP_TOKEN = 'stop'
-
-        self.SEQUENCE_LENGTH = 1
-        self.VOCAB_SIZE = 10
-        self.NUM_TRAINING_SAMPLES = 1000
+        self.SEQUENCE_LENGTH = None
+        self.VOCAB_SIZE = None
+        self.NUM_TRAINING_SAMPLES = None
         self.NUM_TEST_SAMPLES = 1000
-        # self.EMBEDDING_SIZE = 100
 
-        self.HIDDEN_DIM = 20
-        self.DROPOUT = .2
-        self.REGULARIZE = False
-        self.EPOCHS = 100
-        self.BATCH_SIZE = 32
+        self.HIDDEN_DIM = None
+        self.DROPOUT = None
+        self.EPOCHS = 50
+        self.BATCH_SIZE = None
 opts = Toy_Options()
+START_TOKEN = 'start'
+STOP_TOKEN = 'stop'
+TO_WRITE = os.path.join(fixed_settings.GENERATED_DATA_ROOT,'toy_hyperparameter_search.csv')
 
-for SEQUENCE_LENGTH in [1]:
+rows_of_info = []
+rows_of_info.append(list(vars(opts).keys())+['Training Accuracy', 'Test Accuracy'])
+for SEQUENCE_LENGTH in [1,2,10,50]:
     opts.SEQUENCE_LENGTH = SEQUENCE_LENGTH
-    for VOCAB_SIZE in [10]:
+    for VOCAB_SIZE in [10, 100, 1000, 10000]:
         opts.VOCAB_SIZE = VOCAB_SIZE
-        for NUM_TRAINING_SAMPLES in [VOCAB_SIZE*10**(p) for p in [0,1,2]]:
+        for NUM_TRAINING_SAMPLES in [VOCAB_SIZE * 10 ** (p) for p in [0, 1, 2]]:
             opts.NUM_TRAINING_SAMPLES = NUM_TRAINING_SAMPLES
-            for HIDDEN_DIM in [10,150,300]:
+            for HIDDEN_DIM in [10, 150, 300]:
                 opts.HIDDEN_DIM = HIDDEN_DIM
                 for DROPOUT in [0,.2,.5]:
                     opts.DROPOUT = DROPOUT
-                    for BATCH_SIZE in [16,32,64,128]:
+                    for BATCH_SIZE in [32]:
                         opts.BATCH_SIZE = BATCH_SIZE
+
+                        print(opts)
+
                         #region generate data
                         # TOY DATA
                         tokens = list(range(opts.VOCAB_SIZE))
-                        in_sentences = [' '.join([str(random.choice(tokens)) for token_to_gen in range(opts.SEQUENCE_LENGTH)]+[opts.STOP_TOKEN])
-                                        for sentence_to_gen in range(opts.NUM_TRAINING_SAMPLES)]
+                        in_sentences = [' '.join([str(random.choice(tokens)) for token_to_gen in range(opts.SEQUENCE_LENGTH)]+[STOP_TOKEN])
+                                        for sentence_to_gen in range(opts.NUM_TRAINING_SAMPLES+opts.NUM_TEST_SAMPLES)]
                         out_sentences = in_sentences
-                        print("Dataset:")
+                        # print("Dataset:")
                         # print('\n'.join(['/'.join(sample) for sample in zip(in_sentences, out_sentences)]))
 
                         # prepare the tokenizer on the source text
                         in_tokenizer = Tokenizer()
-                        in_tokenizer.fit_on_texts(in_sentences+[opts.START_TOKEN])
+                        in_tokenizer.fit_on_texts(in_sentences+[START_TOKEN])
                         in_index_to_word = {index: word for (word, index) in in_tokenizer.word_index.items()}
                         in_vocab_size = len(in_tokenizer.word_index) + 1  # Because tokenizer does not assign 0
                         print('Vocabulary Size: %d' % in_vocab_size)
@@ -87,7 +95,7 @@ for SEQUENCE_LENGTH in [1]:
 
                         # prepare the tokenizer on the source text
                         out_tokenizer = Tokenizer()
-                        out_tokenizer.fit_on_texts(out_sentences+[opts.START_TOKEN])
+                        out_tokenizer.fit_on_texts(out_sentences+[START_TOKEN])
                         out_index_to_word = {index: word for (word, index) in out_tokenizer.word_index.items()}
                         out_vocab_size = len(out_tokenizer.word_index) + 1  # Because tokenizer does not assign 0
                         print('Vocabulary Size: %d' % out_vocab_size)
@@ -136,16 +144,11 @@ for SEQUENCE_LENGTH in [1]:
                         training_model, encoder_model, decoder_model = my_models.seq2seq_models(in_vocab_size, out_vocab_size,
                                                                                                 hidden_dim=opts.HIDDEN_DIM,
                                                                                                 dropout=opts.DROPOUT)
-                        # training_model, encoder_model, decoder_model = my_models.seq2seq_models(
-                        #     input_length=X.shape[1], output_length=Y.shape[1],
-                        #     in_embedding_matrix_shape=(in_vocab_size, opts.EMBEDDING_SIZE),
-                        #     out_embedding_matrix_shape=(out_vocab_size, opts.EMBEDDING_SIZE),
-                        #     hidden_layers=opts.HIDDEN_LAYERS, dropout=opts.DROPOUT, regularize=opts.REGULARIZE)
                         training_model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
                         #endregion
 
                         #region train
-                        training_model.fit([encoder_input_data, decoder_input_data], decoder_target_data,
+                        history = training_model.fit([encoder_input_data, decoder_input_data], decoder_target_data,
                                 validation_data=([test_input_data, np.random.normal(test_decoder_input_data)],test_target_data),
                                 epochs=opts.EPOCHS, batch_size=opts.BATCH_SIZE, verbose=2)
                         #endregion
@@ -161,15 +164,17 @@ for SEQUENCE_LENGTH in [1]:
                                   test_target_data[i,:,:].reshape(1, out_max_sentence_length, out_vocab_size)
                             prediction = my_models.predict_sequence(encoder_model, decoder_model, x, out_vocab_size,
                                                                     words_to_index=out_tokenizer.word_index,
-                                                                    start_token=opts.START_TOKEN, stop_token=opts.STOP_TOKEN)
-                            x_sentence = [out_index_to_word[id] for id in one_hot_decode(x[0])]
-                            predicted_sentence = [out_index_to_word[id] for id in one_hot_decode(prediction)]
-                            print(x_sentence)
-                            print(predicted_sentence)
-                            print('\n')
+                                                                    start_token=START_TOKEN, stop_token=STOP_TOKEN,
+                                                                    prediction_length_cap=out_max_sentence_length)
+                            x_sentence = [out_index_to_word[id] for id in one_hot_decode(x[0]) if not id==0]
+                            predicted_sentence = [out_index_to_word[id] for id in one_hot_decode(prediction) if not id==0]
+                            # print(x_sentence)
+                            # print(predicted_sentence)
+                            # print('\n')
                             if x_sentence == predicted_sentence:
                                 num_correct += 1
-                        print('{corr}/{all}={perc:.2%}'.format(corr=num_correct, all=opts.NUM_TEST_SAMPLES, perc=num_correct/opts.NUM_TEST_SAMPLES))
+                        perc = num_correct / opts.NUM_TEST_SAMPLES
+                        print('{corr}/{all}={perc:.2%}'.format(corr=num_correct, all=opts.NUM_TEST_SAMPLES, perc=perc))
                             #
                             # generated = my_models.decode_sequence(x, Y.shape[1],
                             #                                       encoder_model, decoder_model,
@@ -196,5 +201,13 @@ for SEQUENCE_LENGTH in [1]:
                         #endregion
 
                         #region save info
-
+                        history_log = history.history
+                        rows_of_info.append(list(vars(opts).values())+[history_log["acc"][-1]]+[perc])
                         #endregion
+
+#region write
+with open(TO_WRITE, 'w') as csvfile:
+    writer = csv.writer(csvfile, dialect='excel', delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+    for row in rows_of_info:
+        writer.writerow([str(elt) for elt in row])
+#endregion
