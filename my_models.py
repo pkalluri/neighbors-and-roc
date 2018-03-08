@@ -38,11 +38,64 @@ def classifier_model(input_length, num_classes, embedding_matrix_shape=None, emb
     model.summary()
     return model
 
+### Modified from https://machinelearningmastery.com/develop-encoder-decoder-model-sequence-sequence-prediction-keras/ ###
+def seq2seq_models(in_vocab_size, out_vocab_size, hidden_dim,
+                   dropout):
+    # define training encoder
+    encoder_inputs = Input(shape=(None, in_vocab_size))
+    encoder = LSTM(hidden_dim, return_state=True, dropout=dropout)
+    _, state_h, state_c = encoder(encoder_inputs)
+    encoder_states = [state_h, state_c]
+    # define training decoder
+    decoder_inputs = Input(shape=(None, out_vocab_size))
+    decoder_lstm = LSTM(hidden_dim, return_sequences=True, return_state=True, dropout=dropout)
+    decoder_outputs, _, _ = decoder_lstm(decoder_inputs, initial_state=encoder_states)
+    decoder_dense = Dense(out_vocab_size, activation='softmax')
+    decoder_outputs = decoder_dense(decoder_outputs)
+    training_model = Model([encoder_inputs, decoder_inputs], decoder_outputs)
+    # define inference encoder
+    encoder_model = Model(encoder_inputs, encoder_states)
+    # define inference decoder
+    decoder_state_input_h = Input(shape=(hidden_dim,), name="decoder_state_input_h")
+    decoder_state_input_c = Input(shape=(hidden_dim,), name="decoder_state_input_c")
+    decoder_states_inputs = [decoder_state_input_h, decoder_state_input_c]
+    decoder_outputs, state_h, state_c = decoder_lstm(decoder_inputs, initial_state=decoder_states_inputs)
+    decoder_states = [state_h, state_c]
+    decoder_outputs = decoder_dense(decoder_outputs)
+    decoder_model = Model([decoder_inputs] + decoder_states_inputs, [decoder_outputs] + decoder_states)
+    # return all models
+    return training_model, encoder_model, decoder_model
 
-def seq2seq_model(input_length, output_length,
-                  in_embedding_matrix_shape=None, in_embedding_matrix=None,
-                  out_embedding_matrix_shape=None, out_embedding_matrix=None,
-                  hidden_layers=[], dropout=False, regularize=False):
+### Modified from https://machinelearningmastery.com/develop-encoder-decoder-model-sequence-sequence-prediction-keras/ ###
+def predict_sequence(encoder_model, decoder_model, x, out_vocab_size, words_to_index, start_token, stop_token):
+    # encode
+    state = encoder_model.predict(x)
+    # start of sequence input
+    target_seq = np.array([0.0 for _ in range(out_vocab_size)]).reshape(1, 1, out_vocab_size)
+    target_seq[0,0,words_to_index[start_token]] = 1.
+    # collect predictions
+    output = []
+
+    stop = False
+    while not stop:
+        # predict next
+        out, h, c = decoder_model.predict([target_seq] + state)
+        # store prediction
+        output.append(out[0,0,:])
+        # update state
+        state = [h, c]
+        #  update target sequence
+        target_seq = out
+        # check for stop
+        predicted_index = np.argmax(out[0,0,:])
+        if predicted_index == words_to_index[stop_token]:
+            stop=True
+    return np.array(output)
+
+def seq2seq_model_with_embs(input_length, output_length,
+                            in_embedding_matrix_shape=None, in_embedding_matrix=None,
+                            out_embedding_matrix_shape=None, out_embedding_matrix=None,
+                            hidden_layers=[], dropout=False, regularize=False):
     ### Code modified from https://blog.keras.io/a-ten-minute-introduction-to-sequence-to-sequence-learning-in-keras.html ###
 
     if in_embedding_matrix is None: # Initialize embedding randomly

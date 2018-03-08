@@ -122,14 +122,14 @@ if model_opts.EMBEDDINGS_FILENAME:
 additional_training_data = alternative_training_data if model_opts.USING_ALTERNATIVES else fresh_training_data
 print("Building model...")
 if model_opts.EMBEDDINGS_FILENAME:
-    training_model,encoder_model,decoder_model = my_models.seq2seq_model(input_length=X.shape[1], output_length=Y.shape[1],
-                                  in_embedding_matrix=in_embedding_matrix, out_embedding_matrix=out_embedding_matrix,
-                                  hidden_layers=model_opts.HIDDEN_LAYERS, dropout=model_opts.DROPOUT, regularize=model_opts.REGULARIZE)
+    training_model,encoder_model,decoder_model = my_models.seq2seq_model_with_embs(input_length=X.shape[1], output_length=Y.shape[1],
+                                                                                   in_embedding_matrix=in_embedding_matrix, out_embedding_matrix=out_embedding_matrix,
+                                                                                   hidden_layers=model_opts.HIDDEN_LAYERS, dropout=model_opts.DROPOUT, regularize=model_opts.REGULARIZE)
 else:  # Random embedding, mostly for debugging
-    training_model, encoder_model, decoder_model = my_models.seq2seq_model(input_length=X.shape[1], output_length=Y.shape[1],
-                                   in_embedding_matrix_shape=(in_vocab_size, model_opts.EMBEDDING_SIZE),
-                                   out_embedding_matrix_shape=(out_vocab_size, model_opts.EMBEDDING_SIZE),
-                                   hidden_layers=model_opts.HIDDEN_LAYERS, dropout=model_opts.DROPOUT, regularize=model_opts.REGULARIZE)
+    training_model, encoder_model, decoder_model = my_models.seq2seq_model_with_embs(input_length=X.shape[1], output_length=Y.shape[1],
+                                                                                     in_embedding_matrix_shape=(in_vocab_size, model_opts.EMBEDDING_SIZE),
+                                                                                     out_embedding_matrix_shape=(out_vocab_size, model_opts.EMBEDDING_SIZE),
+                                                                                     hidden_layers=model_opts.HIDDEN_LAYERS, dropout=model_opts.DROPOUT, regularize=model_opts.REGULARIZE)
 training_model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
 print("Training model...")
 encoder_input_data = np.vstack((basic_training_data[0], additional_training_data[0]))
