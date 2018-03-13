@@ -2,6 +2,9 @@ from keras.layers import Input, Embedding, Dense, Activation, Flatten, LSTM,Drop
 from keras.models import Model, Sequential
 from keras import regularizers
 import numpy as np
+from neighbors_and_roc import util_misc
+
+util_misc.force_tf_to_take_memory_only_as_needed() # For use on NLP cluster
 
 def classifier_model(input_length, num_classes, embedding_matrix_shape=None, embedding_matrix=None, hidden_layers=[], dropout=False, regularize=False):
     # Create embedding layer

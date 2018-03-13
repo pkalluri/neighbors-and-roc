@@ -44,6 +44,8 @@ class Toy_Options(Options):
         self.SEQUENCE_LENGTH = None
         self.VOCAB_SIZE = None
         self.NUM_TRAINING_SAMPLES = None
+        self.NUM_ADDITIONAL_TRAINING_SAMPLES = None
+        self.ADDITIONAL_SAMPLES_ARE_ALTERNATIVES = None
         self.NUM_TEST_SAMPLES = 1000
 
         self.HIDDEN_DIM = 150
@@ -55,20 +57,24 @@ STOP_TOKEN = 'stop'
 TO_WRITE = os.path.join(fixed_settings.GENERATED_DATA_ROOT,'tmp-paraphrases.csv')
 print("Writing to {}".format(TO_WRITE))
 
-row = list(vars(Toy_Options()).keys())+['Training Accuracy', 'Test Accuracy']
-with open(TO_WRITE, 'w') as csvfile:
-    writer = csv.writer(csvfile, dialect='excel', delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
-    writer.writerow([str(elt) for elt in row]) # Column headers
+# row = list(vars(Toy_Options()).keys())+['Training Accuracy', 'Test Accuracy']
+# with open(TO_WRITE, 'w') as csvfile:
+#     writer = csv.writer(csvfile, dialect='excel', delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+#     writer.writerow([str(elt) for elt in row]) # Column headers
 
 opts_list = []
-for SEQUENCE_LENGTH in [10,50]:
-    for VOCAB_SIZE in [10, 100, 1000]:
-        for NUM_TRAINING_SAMPLES in [int(VOCAB_SIZE * 10**p) for p in [2,3,4,5]]:
-            curr_opts = Toy_Options()
-            curr_opts.SEQUENCE_LENGTH = SEQUENCE_LENGTH
-            curr_opts.VOCAB_SIZE = VOCAB_SIZE
-            curr_opts.NUM_TRAINING_SAMPLES = NUM_TRAINING_SAMPLES
-            opts_list.append(curr_opts)
+for SEQUENCE_LENGTH in [5]:
+    for VOCAB_SIZE in [10]: #TODO
+        for NUM_TRAINING_SAMPLES in [3000,5000]:
+            for NUM_ADDITIONAL_TRAINING_SAMPLES in [0]:
+                for ADDITIONAL_SAMPLES_ARE_ALTERNATIVES in [False]:
+                    curr_opts = Toy_Options()
+                    curr_opts.SEQUENCE_LENGTH = SEQUENCE_LENGTH
+                    curr_opts.VOCAB_SIZE = VOCAB_SIZE
+                    curr_opts.NUM_TRAINING_SAMPLES = NUM_TRAINING_SAMPLES
+                    curr_opts.ADDITIONAL_SAMPLES_ARE_ALTERNATIVES = ADDITIONAL_SAMPLES_ARE_ALTERNATIVES
+                    curr_opts.NUM_ADDITIONAL_TRAINING_SAMPLES = NUM_ADDITIONAL_TRAINING_SAMPLES
+                    opts_list.append(curr_opts)
 
 for opts in opts_list:
     print(opts)
@@ -83,7 +89,7 @@ for opts in opts_list:
     # print('\n'.join(['/'.join(sample) for sample in zip(in_sentences, out_sentences)]))
 
     # prepare the tokenizer on the source text
-    in_tokenizer = Tokenizer()
+    in_tokenizer = Tokenizer(filters='')
     in_tokenizer.fit_on_texts(in_sentences+[START_TOKEN])
     in_index_to_word = {index: word for (word, index) in in_tokenizer.word_index.items()}
     in_vocab_size = len(in_tokenizer.word_index) + 1  # Because tokenizer does not assign 0
@@ -96,7 +102,7 @@ for opts in opts_list:
     print('Max Sequence Length: %d' % in_max_sentence_length)
 
     # prepare the tokenizer on the source text
-    out_tokenizer = Tokenizer()
+    out_tokenizer = Tokenizer(filters='')
     out_tokenizer.fit_on_texts(out_sentences+[START_TOKEN])
     out_index_to_word = {index: word for (word, index) in out_tokenizer.word_index.items()}
     out_vocab_size = len(out_tokenizer.word_index) + 1  # Because tokenizer does not assign 0
@@ -121,7 +127,6 @@ for opts in opts_list:
 
     #region prep data for model
     # TRAIN WITH DATA ADDED
-    print("Training model...")
     ### Tab over 2d array with tab=c ###
     def tab(arr, c):
         (rows,cols) = arr.shape
@@ -150,8 +155,9 @@ for opts in opts_list:
     #endregion
 
     #region train
+    print("Training model...")
     history = training_model.fit([encoder_input_data, decoder_input_data], decoder_target_data,
-            validation_data=([test_input_data, np.random.normal(test_decoder_input_data)],test_target_data),
+            validation_data=([test_input_data, test_decoder_input_data],test_target_data),
             epochs=opts.EPOCHS, batch_size=opts.BATCH_SIZE, verbose=2)
     #endregion
 
@@ -168,39 +174,18 @@ for opts in opts_list:
                                                 words_to_index=out_tokenizer.word_index,
                                                 start_token=START_TOKEN, stop_token=STOP_TOKEN,
                                                 prediction_length_cap=out_max_sentence_length)
-        x_sentence = [out_index_to_word[id] for id in one_hot_decode(x[0]) if not id==0]
+        x_tokens = [in_index_to_word[id] for id in one_hot_decode(x[0]) if not id==0]
         target_tokens = [out_index_to_word[id] for id in one_hot_decode(target[0]) if not id == 0]
         predicted_tokens = [out_index_to_word[id] for id in one_hot_decode(prediction) if not id == 0]
-        # print(x_sentence)
-        # print(predicted_sentence)
-        # print('\n')
+        if i<3:
+            print('x: '+str(x_tokens))
+            print('target: '+str(target_tokens))
+            print('pred: '+str(predicted_tokens))
+            print('\n')
         if toy_data.is_paraphrase(target_tokens, predicted_tokens):
             num_correct += 1
     perc = num_correct / opts.NUM_TEST_SAMPLES
     print('{corr}/{all}={perc:.2%}'.format(corr=num_correct, all=opts.NUM_TEST_SAMPLES, perc=perc))
-        #
-        # generated = my_models.decode_sequence(x, Y.shape[1],
-        #                                       encoder_model, decoder_model,
-        #                                       out_tokenizer.word_index, out_index_to_word,
-        #                                       start_token=opts.START_TOKEN, stop_token=opts.STOP_TOKEN)
-        # print(generated)
-    #
-    #     prediction = model.predict_classes(x)[0]
-    #     if y[0,prediction] == 1: print('\nCorrect:'); num_correct += 1
-    #     else: print('\nWrong')
-    #     choice_num = 0
-    #     for start in range(0,x.shape[1],max_sentence_length):
-    #         predicted_flag = ''
-    #         gold_star_flag = ''
-    #         if start != 0:
-    #             if choice_num == prediction: predicted_flag = '>'
-    #             if y[0,choice_num] == 1: gold_star_flag = '*'
-    #             choice_num += 1
-    #         print(gold_star_flag+predicted_flag+
-    #               ' '.join([index_to_word[i] for i in x[0,start:start+max_sentence_length] if i!=0])) # HELPFUL FOR DEBUGGING
-    # print('\n{correct}/{all}={perc:.2%}'.format(correct=num_correct, all=model_opts.NUM_TESTING_SAMPLES,
-    #                                         perc=num_correct/model_opts.NUM_TESTING_SAMPLES))
-
     #endregion
 
     #region save info
