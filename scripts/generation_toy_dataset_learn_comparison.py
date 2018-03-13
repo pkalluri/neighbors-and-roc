@@ -1,6 +1,3 @@
-from neighbors_and_roc.options import Options, Data_Defaults, Model_Defaults
-from neighbors_and_roc import util_ROC, fixed_settings, util_text, util_emb, my_models, util_misc, toy_data
-
 import random
 import json
 import os
@@ -10,6 +7,11 @@ from keras.utils import to_categorical
 import numpy as np
 import string
 import csv
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), '..','..'))
+
+from neighbors_and_roc.options import Options, Data_Defaults, Model_Defaults
+from neighbors_and_roc import util_ROC, fixed_settings, util_text, util_emb, my_models, util_misc, toy_data
 
 #
 # # OPTIONS
@@ -56,15 +58,15 @@ class Toy_Options(Options):
         self.BATCH_SIZE = 32
 START_TOKEN = 'start'
 STOP_TOKEN = 'stop'
-TO_WRITE = os.path.join(fixed_settings.GENERATED_DATA_ROOT,'runs-comparison-sparse.csv')
-new_file = False
-on_nlp_cluster = False
+TO_WRITE = os.path.join(fixed_settings.GENERATED_DATA_ROOT,'runs-comparison-sparse-on-cluster.csv')
+new_file = True
+on_nlp_cluster = True
 
 opts_list = []
 for SEQUENCE_LENGTH in [5]:
     for VOCAB_SIZE in [5]:
         for NUM_BASE_TRAINING_SAMPLES in [1000]:
-            for PERCENTAGE_SAMPLES_TO_ADD in [1,3,7,9]:
+            for PERCENTAGE_SAMPLES_TO_ADD in [7,9]:
                 for ADDITIONAL_DATA_IS_ALTERNATIVE_DATA in [False,True]:
                     curr_opts = Toy_Options()
                     curr_opts.SEQUENCE_LENGTH = SEQUENCE_LENGTH
